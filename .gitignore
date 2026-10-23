@@ -5,3 +5,16 @@ venv/
 .env
 .env.*
 *.lcd
+
+# Generated measurements, metadata, and figures stay local.
+*.csv
+*.json
+*.pdf
+*.png
+*.svg
+batch_results/
+output/
+
+# Two curated SVG demonstrations.
+!demo/chromatograms.svg
+!demo/peak_integration.svg

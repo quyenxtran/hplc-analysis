@@ -6,6 +6,10 @@ from integrate_peak import integrate_window, load_channels, area_to_uv_seconds
 from plot_hplc import DEFAULT_SOURCE
 from pathlib import Path
 
+SAMPLE_FOLDER = Path(__file__).parent
+SAMPLE_CSV = SAMPLE_FOLDER / "47A0_chromatograms.csv"
+SAMPLE_METADATA = SAMPLE_FOLDER / "47A0_metadata.json"
+
 
 class IntegrationTests(unittest.TestCase):
     def test_shimadzu_area_units_match_direct_integration(self):
@@ -53,6 +57,7 @@ class IntegrationTests(unittest.TestCase):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 integrate_window(*args)
 
+    @unittest.skipUnless(SAMPLE_CSV.exists() and SAMPLE_METADATA.exists(), "Optional local CSV/metadata not present")
     def test_saved_csv_matches_original_calibration(self):
         folder = Path(__file__).parent
         data = np.genfromtxt(folder / "47A0_chromatograms.csv", delimiter=",", names=True)
@@ -62,7 +67,7 @@ class IntegrationTests(unittest.TestCase):
             np.testing.assert_allclose(data[name + "_mV"], expected, rtol=1e-10, atol=1e-10)
             self.assertEqual(len(expected), channel["points"])
 
-    @unittest.skipUnless(DEFAULT_SOURCE.exists(), "Original LCD not present")
+    @unittest.skipUnless(DEFAULT_SOURCE.exists() and SAMPLE_CSV.exists(), "Optional original LCD/CSV not present")
     def test_lcd_and_exported_csv_agree(self):
         lcd = load_channels(DEFAULT_SOURCE)
         csv = load_channels(Path(__file__).parent / "47A0_chromatograms.csv")

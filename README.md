@@ -1,97 +1,84 @@
 # HPLC analysis
 
-Extract Shimadzu HPLC chromatograms, plot detector traces, and integrate selected
-peak windows with area reported in **µV·s**. Includes the 47A0 sample CSV, plots,
-integration outputs, and numerical checks.
+Python tools for Shimadzu HPLC chromatogram extraction, visualization, and peak
+areas in **µV·s**. The repository contains code and two demonstration SVGs.
+Input data and generated CSV, JSON, PNG, PDF, and other figures stay local.
 
-Requires Python 3.9+. From this repository folder:
+Requires Python 3.9+:
 
 ```powershell
 python -m pip install -r requirements.txt
-python integrate_peak.py --start 6 --end 12
 ```
 
-`integrate_peak.py` reads the original `47A0.lcd` on the author's workstation when
-available, and otherwise uses the bundled `47A0_chromatograms.csv`. Both input
-formats are supported explicitly. Keep it beside `plot_hplc.py`, the LCD reader.
-
-Integrate your own LCD file:
+## Export saved Shimadzu areas from a folder
 
 ```powershell
-python integrate_peak.py "C:\path\to\sample.lcd" --start 6 --end 12
+python batch_extract_areas.py "C:\path\to\LCD folder" --output batch_results
 ```
 
-Select only the 210 nm detector or change the bounds:
+This reads the vendor's saved `LSS Data Processing/PT-*` peak tables directly,
+retaining their original area precision and integration bounds.
 
-```powershell
-python integrate_peak.py --channel uv210 --start 6.2 --end 11.5
-```
+- `all_saved_peak_areas.csv`: every saved peak, with filename, detector,
+  retention time, area (µV·s), height (µV), and integration start/end times.
+- `main_peak_areas.csv`: one row per file, with RI and 210/254 nm UV columns.
+  For each detector, selects the largest positive saved area whose apex is in
+  6–12 min. `--start` and `--end` change the selection window, preserving the
+  saved integration bounds. Missing peaks are blank, with explicit statuses.
+- `extraction_metadata.json`: source hashes, coverage, method, and errors.
 
-Specify the exported CSV explicitly:
+Save changes in LabSolutions before exporting to capture updated integration
+results. For the 47A0 demonstration, the saved RI area is 303175.434 µV·s.
 
-```powershell
-python integrate_peak.py 47A0_chromatograms.csv --start 6 --end 12
-```
-
-Extract and plot a compatible three-channel LCD file:
+## Extract and plot chromatograms
 
 ```powershell
 python plot_hplc.py "C:\path\to\sample.lcd" --output output
 ```
 
-Original binary `.lcd` files are excluded from Git. The included sample retains
-refractive-index, 210 nm UV, and 254 nm UV traces in mV, plus raw detector counts.
+Exports detector traces, raw counts, metadata, and PNG/PDF/SVG plots. This reader
+supports the three-channel RI, 210 nm UV, and 254 nm UV layout used by 47A0.
+Time uses the recorded sampling interval; mV scaling follows the file's stored
+calibration and value factors. The plotting layout is configured for the
+demonstration's 15 minute run.
 
-To read another LCD directly, pass its full path as the first argument. The default
-source is `C:\Users\qtran47\OneDrive - Georgia Institute of Technology\Aim 2 Adsorbent\3. Batch Adsorption\Batch Ads FA26\HPLC Data\26 10 22 47A1-2\47A0.lcd`.
-The integration outputs have been regenerated directly from this LCD and checked
-against the saved CSV from the earlier extraction.
+![Example chromatograms](demo/chromatograms.svg)
 
-Other options: `--channel ri|uv210|uv254|all`, `--baseline linear|none`,
-and `--output PATH`. Input CSVs must follow the existing three-channel export
-schema. LCD input is limited to this reader's three-channel layout with mV units.
-For a complete CLI reference use `--help`.
-
-## Calculation
-
-- Bounds are in minutes and must be inside the sampled range. Boundary values
-  are linearly interpolated when they fall between acquired samples.
-- Raw area is the signed trapezoidal integral of the signal over the window.
-- The default baseline is the straight line joining signal values at the two
-  endpoints. Baseline area is its integral over the same window.
-- Net area = raw area - baseline area. Negative portions are retained, with no
-  clipping or smoothing. `--baseline none` integrates against zero.
-- The primary reported area unit is µV·s, matching Shimadzu's unit convention.
-  Conversion: **area (µV·s) = area (mV·min) × 60,000**. Console output and plot
-  titles use this unit. The CSV and JSON include `net_area_uV_s`,
-  `raw_area_uV_s`, and `baseline_area_uV_s`; previous mV·min and mV·s columns
-  are retained. Corrected peak height is also included in µV.
-- The first-pass 6–12 minute window contains the dominant peak envelope,
-  including shoulders and tail. These are initial manual bounds, not automated
-  peak detection. Endpoint baseline subtraction can remove residual tail signal;
-  inspect the plot and adjust the bounds to your integration protocol.
-- These areas are not compound-specific quantities and do not establish
-  concentration without an appropriate calibration. Vendor integration may use
-  different baseline and peak-separation rules. Matching units does not reproduce
-  Chromatopac integration boundaries or its baseline algorithm. For the default
-  RI window, the script gives about 302,798 µV·s; the screenshot reports 303,175.
-
-## Outputs
-
-The default `peak_area/` directory receives a summary CSV (raw, baseline and net
-area; apex time; corrected height), pointwise integration CSV, provenance JSON,
-and shaded PNG/PDF/SVG plots. Filenames include bounds, detector selection and
-baseline method. Re-running identical parameters replaces that output set.
-
-LCD time values use the stored 500 ms sampling interval; the last sample is at
-14.9916667 minutes. Stored calibration and value factors provide signal scaling,
-using the file's mV display setting. The binary reader follows the publicly
-documented [chromConverter format implementation](https://github.com/ethanbass/chromConverter/blob/master/R/read_shimadzu_lcd.R).
-
-Numerical and source-consistency checks:
+## Calculate areas with adjustable bounds
 
 ```powershell
-python -m unittest discover -s . -p test_integrate_peak.py -v
+python integrate_peak.py "C:\path\to\sample.lcd" --start 6 --end 12
+python integrate_peak.py "C:\path\to\sample.lcd" --channel uv210 --start 6.2 --end 11.5
+python integrate_peak.py output\sample_chromatograms.csv --start 6 --end 12
 ```
 
-The direct LCD-versus-CSV comparison is skipped when the original LCD is absent.
+Accepts compatible LCD files or the exported three-channel CSV. Supply an input
+path; the optional default points to the author's local 47A0 data. Other options
+are `--channel ri|uv210|uv254|all`, `--baseline linear|none`, and `--output PATH`.
+
+The script uses signed trapezoidal integration with interpolated boundary
+samples. Its default baseline joins signal values at the endpoints; negative
+portions are retained without clipping or smoothing. `--baseline none` uses a
+zero baseline. Outputs include raw, baseline, and net areas, pointwise curves,
+provenance JSON, and shaded plots.
+
+**Area (µV·s) = area (mV·min) × 60,000.** Older mV·min and mV·s fields are also
+retained. The default 6–12 min window includes shoulders and tail. This calculated
+area can differ from saved Shimadzu results because baseline and boundary rules
+differ: 47A0's RI example gives about 302798 µV·s with these settings. Areas do
+not establish compound identity or concentration without appropriate calibration.
+
+![Example calculated integration](demo/peak_integration.svg)
+
+## Checks and format references
+
+```powershell
+python -m unittest discover -s . -p "test_*.py" -v
+```
+
+Numerical tests use synthetic data. Optional source-consistency checks run only
+when the original LCD or local exported fixtures are available.
+
+Binary layout references:
+[chromatograms](https://github.com/ethanbass/chromConverter/blob/master/R/read_shimadzu_lcd.R)
+and [saved peak tables](https://github.com/ethanbass/chromConverter/blob/master/R/read_shimadzu_peaktable.R).

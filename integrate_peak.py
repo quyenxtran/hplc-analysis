@@ -1,6 +1,6 @@
 """Integrate a user-selected HPLC peak window in a Shimadzu LCD or exported CSV.
 
-Default: original 47A0.lcd when available, otherwise the bundled sample CSV;
+Default: original 47A0.lcd when available, otherwise a local exported sample CSV;
 all detectors, 6-12 min, linear endpoint baseline.
 Primary reported area unit: uV*s (Shimadzu convention); mV*min is retained.
 Requires numpy, matplotlib, olefile, and the adjacent plot_hplc.py.
