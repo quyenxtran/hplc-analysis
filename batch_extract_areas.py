@@ -2,8 +2,8 @@
 
 Reads the vendor's PT-* peak tables; does not reintegrate raw chromatograms.
 Writes every saved peak, a filtered large-peak table, and a main-peak summary.
-Default filter: apex in 6-12 min, area >=1000 uV*s, and >=1% of the largest
-positive peak per file/detector within that window. A separate 4-minute minimum
+Default filter: apex in 5-12 min, area >=1000 uV*s, and >=1% of the largest
+positive peak per file/detector within that window. A separate 5-minute minimum
 retention time also applies when widening the window. Thresholds are adjustable.
 Layout reference:
 https://github.com/ethanbass/chromConverter/blob/master/R/read_shimadzu_peaktable.R
@@ -93,7 +93,7 @@ def read_saved_peaks(path):
     return channels
 
 
-def filter_peaks(peaks, start, end, min_area=1000.0, min_relative_area_percent=1.0, min_retention_time=4.0):
+def filter_peaks(peaks, start, end, min_area=1000.0, min_relative_area_percent=1.0, min_retention_time=5.0):
     """Filter saved peak records, retaining their original areas and bounds.
 
     Relative reference is the largest positive saved area in this file/detector's
@@ -114,7 +114,7 @@ def filter_peaks(peaks, start, end, min_area=1000.0, min_relative_area_percent=1
     return [p for p in candidates if p["area_uV_s"] >= threshold], threshold, reference
 
 
-def select_main_peak(peaks, start, end, min_area=0.0, min_relative_area_percent=0.0, min_retention_time=4.0):
+def select_main_peak(peaks, start, end, min_area=0.0, min_relative_area_percent=0.0, min_retention_time=5.0):
     candidates, _, _ = filter_peaks(peaks, start, end, min_area, min_relative_area_percent, min_retention_time)
     return max(candidates, key=lambda p: p["area_uV_s"], default=None), len(candidates)
 
@@ -126,7 +126,7 @@ def write_csv(path, rows, fields):
         writer.writerows(rows)
 
 
-def extract_folder(folder, output, start=6.0, end=12.0, min_area=1000.0, min_relative_area_percent=1.0, min_retention_time=4.0):
+def extract_folder(folder, output, start=5.0, end=12.0, min_area=1000.0, min_relative_area_percent=1.0, min_retention_time=5.0):
     filter_peaks([], start, end, min_area, min_relative_area_percent, min_retention_time)
     effective_start = max(start, min_retention_time)
     files = sorted([p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".lcd"], key=lambda p: natural_key(p.name))
@@ -207,10 +207,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("folder", nargs="?", type=Path, default=DEFAULT_SOURCE.parent)
     parser.add_argument("--output", type=Path, default=Path(__file__).parent / "batch_results" / "26_10_22_47A1-2_filtered")
-    parser.add_argument("--start", type=float, default=6)
+    parser.add_argument("--start", type=float, default=5)
     parser.add_argument("--end", type=float, default=12)
-    parser.add_argument("--min-retention-time", type=float, default=4,
-                        help="Exclude peak apex times below this many minutes, even if --start is earlier (default: 4)")
+    parser.add_argument("--min-retention-time", type=float, default=5,
+                        help="Exclude peak apex times below this many minutes, even if --start is earlier (default: 5)")
     parser.add_argument("--min-area", type=float, default=1000, help="Minimum saved area in uV*s (default: 1000)")
     parser.add_argument("--min-relative-area-percent", type=float, default=1,
                         help="Minimum percent of largest positive peak per file/detector in the apex window; 0 disables (default: 1)")
