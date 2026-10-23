@@ -4,3 +4,6 @@
 *.txt text eol=lf
 *.yml text eol=lf
 *.svg -text
+*.js text eol=lf
+*.html text eol=lf
+*.css text eol=lf

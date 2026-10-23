@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HPLC workbench</title><link rel="stylesheet" href="style.css"></head>
+<body><header><div><h1>HPLC workbench</h1><p id="label">Connecting to local session…</p></div>
+<nav aria-label="Session"><button id="undo">Undo</button><button id="redo">Redo</button><button id="export" class="primary">Export session + fit</button></nav></header>
+<div class="source"><label>File <select id="file"></select></label><label>Detector <select id="channel"><option value="ri">RI</option><option value="uv210">UV 210 nm</option><option value="uv254">UV 254 nm</option></select></label><button id="load">Load selected file</button><label>Restore audit <input id="audit" type="file" accept=".json"></label></div>
+<p id="status" role="status" aria-live="polite">All measurements stay on this computer.</p>
+<main><section class="plot-panel"><div class="plot-tools"><label>Graph tool <select id="tool"><option value="select">Select / drag endpoints</option><option value="window">Drag new peak window</option><option value="split">Click to split selected peak</option><option value="seed">Click component seed</option><option value="zoom">Drag to zoom</option></select></label><button id="reset">Reset view</button></div>
+<canvas id="graph" aria-label="Chromatogram with draggable integration endpoints"></canvas><p class="hint">Dark: input · Rust: model sum · Component curves: 1 teal, 2 orange, 3 blue, 4 magenta, 5 green, 6 cyan · Dashed: baseline</p><p class="hint">Time: min · Signal: mV. Drag a round baseline handle to change its time and intensity. Numeric controls provide the same edits.</p>
+<canvas id="residual" aria-label="Fit residuals in mV"></canvas><div id="diagnostics">No fit yet. Select an envelope and review its baseline before fitting.</div></section>
+<aside><div class="pair"><button id="manualTab" class="primary" aria-pressed="true">Manual edits</button><button id="fitTab" aria-pressed="false">Fit components</button></div><div id="manualControls" class="controls"><h2>Manual integration</h2><label>Selected peak <select id="peak"></select></label>
+<div class="pair"><label>Start (min)<input id="start" type="number" step="any"></label><label>End (min)<input id="end" type="number" step="any"></label></div>
+<div class="pair"><label>Start baseline (mV)<input id="left" type="number" step="any"></label><label>End baseline (mV)<input id="right" type="number" step="any"></label></div>
+<button id="move">Apply endpoints</button><label>Baseline <select id="baseline"><option>linear</option><option>horizontal</option><option>zero</option><option>custom</option></select></label>
+<label>Custom knots: time,mV; time,mV<input id="knots" placeholder="6,0.1; 7,0.12; 8,0.1"></label><button id="setbase">Set baseline</button>
+<div class="pair"><button id="insert">Insert window</button><button id="skim">Skim inside selected</button><button id="reject">Reject / restore</button><button id="unskim">Remove skim</button></div>
+<label>Split / separation <select id="separation"><option value="vertical">Vertical (shared baseline)</option><option value="baseline">Baseline through cut</option></select></label>
+<label>Cut time (min)<input id="cut" type="number" step="any"></label><button id="split">Split at cut</button>
+<div class="pair"><label>Valley bracket start<input id="valleyStart" type="number" step="any"></label><label>End (min)<input id="valleyEnd" type="number" step="any"></label></div><button id="valley">Split at valley</button>
+<div class="pair"><button id="merge">Merge checked peaks</button><button id="separate">Set checked pair separation</button></div>
+</div><div id="fitControls" class="controls" hidden><h2>Overlapping components</h2><label>Model <select id="model"><option value="gaussian">Gaussian</option><option value="emg">EMG (tailing)</option></select></label>
+<label>Center estimates (min, comma separated)<input id="centers" value="6.8, 7.08, 7.36"></label><label>Center tolerance (min, optional)<input id="tolerance" type="number" step="any" min="0"></label><button id="fit" class="primary">Fit selected envelope</button><p class="hint">1–6 components. EMG centers are Gaussian locations, not observed apices. Areas depend on count, model, and baseline.</p>
+</div></aside></main><section class="tables"><h2>Manual areas · µV·s</h2><div id="manualTable"></div><h2>Model-based component areas · µV·s</h2><div id="fitTable">No fit yet.</div></section>
+<script type="module" src="app.js"></script></body></html>

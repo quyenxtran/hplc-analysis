@@ -1,6 +1,7 @@
 # Repository rules
 
 - Every Python module, including tests, must be at most 5,000 UTF-8 bytes.
+- JavaScript, HTML, and CSS files follow the same hard 5,000-byte limit.
 - Keep text documentation/configuration files within the same limit. SVG demo
   assets are exempt. Do not weaken the guard to accommodate large source files.
 - Split modules by responsibility; preserve the public command/API entry points.

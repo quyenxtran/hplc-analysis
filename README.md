@@ -9,6 +9,24 @@ Requires Python 3.9+:
 python -m pip install -r requirements.txt
 ```
 
+## Interactive editor and component fitting
+
+```powershell
+python hplc_workbench.py
+python hplc_workbench.py sample.lcd --channel ri
+python fit_peaks.py --demo --output editing_results/overlap_demo
+```
+
+The local browser editor supports draggable baseline endpoints, window selection,
+split/merge/skim/reject operations, undo/redo, session exports, and Gaussian/EMG
+component-fit previews with residuals and diagnostic flags. Fitting supports
+1–6 positive components with reviewed center estimates and a fixed baseline.
+Window integrals and full model areas are reported separately. Model component
+estimates do not establish chemical identity or unique separation of coelution.
+
+- [Interactive workbench guide](docs/workbench.md)
+- [Fitting API, CLI, assumptions, and uncertainty](docs/component_fitting.md)
+
 ## Manual peak editing
 
 Split overlapping peaks, adjust baselines, insert/reject peaks, merge regions,
@@ -54,7 +72,7 @@ python check_module_sizes.py
 python -m unittest discover -s . -p "test_*.py" -v
 ```
 
-**Hard limit: 5,000 UTF-8 bytes per Python source/test module and text document.**
+**Hard limit: 5,000 UTF-8 bytes per Python/JS/HTML/CSS module, test, and text document.**
 The size check runs in the test suite and GitHub Actions. SVG demo assets are
 exempt. LF line endings keep byte counts consistent across platforms.
 

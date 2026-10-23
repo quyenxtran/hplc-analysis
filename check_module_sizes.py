@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 LIMIT = 5000
-TEXT_SUFFIXES = {".py", ".md", ".txt", ".yml", ".yaml", ".toml"}
+TEXT_SUFFIXES = {".py", ".md", ".txt", ".yml", ".yaml", ".toml", ".js", ".mjs", ".cjs", ".html", ".css"}
 IGNORED_DIRS = {".git", "__pycache__", ".venv", "venv", ".cache", ".pytest_cache",
                 "batch_results", "editing_results", "peak_area", "output"}
 

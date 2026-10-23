@@ -1,3 +1,4 @@
 numpy>=1.24
 matplotlib>=3.7
 olefile>=0.47
+scipy>=1.10

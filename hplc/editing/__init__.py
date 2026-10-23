@@ -14,3 +14,7 @@ from .session import SessionOps
 
 class PeakEditor(EditorState, ValidationOps, HistoryOps, BaselineOps, EndpointOps, SplitOps, MergeOps, SkimOps, ResultOps, ExportOps, SessionOps):
     """Manual area allocation with immutable input, undo/redo, and audit export."""
+
+    def fit_components(self, peak_id, centers_min, model="gaussian", center_tolerance_min=None, starts=5):
+        from ..fitting.api import FitOps
+        return FitOps.fit_components(self, peak_id, centers_min, model, center_tolerance_min, starts)
