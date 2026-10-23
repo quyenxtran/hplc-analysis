@@ -2,11 +2,32 @@
 import struct
 import unittest
 
-from batch_extract_areas import parse_peak_table, read_saved_peaks, select_main_peak, natural_key
+from batch_extract_areas import parse_peak_table, read_saved_peaks, select_main_peak, natural_key, filter_peaks
 from plot_hplc import DEFAULT_SOURCE
 
 
 class SavedPeakTests(unittest.TestCase):
+    def test_absolute_and_relative_area_filter(self):
+        peaks = [{"retention_time_min": t, "area_uV_s": a} for t, a in
+                 [(2, 1e9), (7, 200000), (8, 2000), (9, 1999), (10, 999), (11, -3000)]]
+        kept, threshold, reference = filter_peaks(peaks, 6, 12, 1000, 1)
+        self.assertEqual(reference, 200000)  # Outside-window peak does not set reference.
+        self.assertEqual(threshold, 2000)
+        self.assertEqual([p["area_uV_s"] for p in kept], [200000, 2000])
+        self.assertEqual(len(peaks), 6)  # Filtering does not mutate original records.
+        kept, threshold, _ = filter_peaks(peaks, 6, 12, 1000, 0)
+        self.assertEqual(threshold, 1000)
+        self.assertEqual(len(kept), 3)
+
+    def test_empty_or_fully_rejected_peak_list(self):
+        self.assertEqual(filter_peaks([], 6, 12), ([], 1000, 0))
+        self.assertEqual(select_main_peak([{"retention_time_min": 7, "area_uV_s": 999}], 6, 12, 1000), (None, 0))
+
+    def test_invalid_thresholds(self):
+        for minimum, relative in [(-1, 1), (float("nan"), 1), (1000, -1), (1000, 101), (1000, float("inf"))]:
+            with self.subTest(minimum=minimum, relative=relative), self.assertRaises(ValueError):
+                filter_peaks([], 6, 12, minimum, relative)
+
     def test_vendor_record_precision_and_times(self):
         raw = bytearray(20 + 792)
         raw[:4] = b"VER1"

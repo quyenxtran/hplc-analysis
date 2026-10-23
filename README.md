@@ -16,15 +16,35 @@ python -m pip install -r requirements.txt
 python batch_extract_areas.py "C:\path\to\LCD folder" --output batch_results
 ```
 
+The default large-peak filter keeps saved peaks with an apex in **6–12 min**,
+area **≥1000 µV·s**, and area **≥1%** of the largest positive saved peak in
+that window, separately for each file/detector. Both thresholds must pass.
+The 1000 minimum matches the illustrated Shimadzu setting. The extra 1% rule
+is a stricter reporting choice; that relative-area control is inactive in the
+screenshot. Existing saved tables already exclude areas below 1000.
+
+```powershell
+python batch_extract_areas.py "C:\path\to\LCD folder" --min-area 1000 --min-relative-area-percent 1
+```
+
+Use `--min-relative-area-percent 0` to disable relative filtering. Thresholds
+filter saved peak records; they do not rerun Chromatopac width/slope detection
+or separate shoulders from a main peak. `integrate_peak.py` still integrates
+the full selected signal window, including shoulders and tail.
+
 This reads the vendor's saved `LSS Data Processing/PT-*` peak tables directly,
 retaining their original area precision and integration bounds.
 
 - `all_saved_peak_areas.csv`: every saved peak, with filename, detector,
   retention time, area (µV·s), height (µV), and integration start/end times.
+- `large_peak_areas.csv`: only saved peaks passing the time/area filters, with
+  the effective threshold and each retained peak's percent of the largest peak.
 - `main_peak_areas.csv`: one row per file, with RI and 210/254 nm UV columns.
   For each detector, selects the largest positive saved area whose apex is in
-  6–12 min. `--start` and `--end` change the selection window, preserving the
-  saved integration bounds. Missing peaks are blank, with explicit statuses.
+  6–12 min and passing both area filters. `--start` and `--end` change the
+  selection window, preserving the saved integration bounds. Candidate counts
+  now report peaks passing all filters. Missing/rejected peaks are blank, with
+  explicit statuses.
 - `extraction_metadata.json`: source hashes, coverage, method, and errors.
 
 Save changes in LabSolutions before exporting to capture updated integration
