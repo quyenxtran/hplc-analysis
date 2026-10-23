@@ -23,6 +23,14 @@ The 1000 minimum matches the illustrated Shimadzu setting. The extra 1% rule
 is a stricter reporting choice; that relative-area control is inactive in the
 screenshot. Existing saved tables already exclude areas below 1000.
 
+A separate **4 min minimum retention time** excludes peaks with an apex below
+4 min, including when `--start` is set earlier. Peaks at exactly 4 min can pass.
+The effective lower bound is `max(--start, --min-retention-time)`. The default
+6–12 min selection therefore stays the same. To include eligible peaks from
+4 min onward through 12 min, use `--start 4`. Override the floor with
+`--min-retention-time VALUE` (set it to 0 to disable early-peak exclusion).
+The unfiltered `all_saved_peak_areas.csv` remains the complete source archive.
+
 ```powershell
 python batch_extract_areas.py "C:\path\to\LCD folder" --min-area 1000 --min-relative-area-percent 1
 ```

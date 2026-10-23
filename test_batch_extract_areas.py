@@ -7,6 +7,25 @@ from plot_hplc import DEFAULT_SOURCE
 
 
 class SavedPeakTests(unittest.TestCase):
+    def test_default_retention_cutoff_and_exact_boundary(self):
+        peaks = [{"retention_time_min": t, "area_uV_s": a} for t, a in
+                 [(3.999, 1e9), (4.0, 2000), (4.001, 3000), (7, 10000)]]
+        kept, threshold, reference = filter_peaks(peaks, 0, 12)
+        self.assertEqual([p["retention_time_min"] for p in kept], [4.0, 4.001, 7])
+        self.assertEqual(reference, 10000)
+        self.assertEqual(threshold, 1000)
+        main, count = select_main_peak(peaks, 0, 12)
+        self.assertEqual(main["retention_time_min"], 7)
+        self.assertEqual(count, 3)
+        kept, _, _ = filter_peaks(peaks, 0, 12, min_relative_area_percent=0, min_retention_time=0)
+        self.assertEqual(len(kept), 4)
+        self.assertEqual(filter_peaks(peaks, 0, 3)[0], [])
+
+    def test_invalid_retention_cutoff(self):
+        for cutoff in [-1, float("nan"), float("inf")]:
+            with self.subTest(cutoff=cutoff), self.assertRaises(ValueError):
+                filter_peaks([], 0, 12, min_retention_time=cutoff)
+
     def test_absolute_and_relative_area_filter(self):
         peaks = [{"retention_time_min": t, "area_uV_s": a} for t, a in
                  [(2, 1e9), (7, 200000), (8, 2000), (9, 1999), (10, 999), (11, -3000)]]

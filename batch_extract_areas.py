@@ -3,7 +3,8 @@
 Reads the vendor's PT-* peak tables; does not reintegrate raw chromatograms.
 Writes every saved peak, a filtered large-peak table, and a main-peak summary.
 Default filter: apex in 6-12 min, area >=1000 uV*s, and >=1% of the largest
-positive peak per file/detector within that window. Thresholds are adjustable.
+positive peak per file/detector within that window. A separate 4-minute minimum
+retention time also applies when widening the window. Thresholds are adjustable.
 Layout reference:
 https://github.com/ethanbass/chromConverter/blob/master/R/read_shimadzu_peaktable.R
 """
@@ -92,7 +93,7 @@ def read_saved_peaks(path):
     return channels
 
 
-def filter_peaks(peaks, start, end, min_area=1000.0, min_relative_area_percent=1.0):
+def filter_peaks(peaks, start, end, min_area=1000.0, min_relative_area_percent=1.0, min_retention_time=4.0):
     """Filter saved peak records, retaining their original areas and bounds.
 
     Relative reference is the largest positive saved area in this file/detector's
@@ -104,14 +105,17 @@ def filter_peaks(peaks, start, end, min_area=1000.0, min_relative_area_percent=1
         raise ValueError("Minimum area must be finite and nonnegative (uV*s).")
     if not math.isfinite(min_relative_area_percent) or not 0 <= min_relative_area_percent <= 100:
         raise ValueError("Minimum relative area must be between 0 and 100 percent.")
-    candidates = [p for p in peaks if start <= p["retention_time_min"] <= end and p["area_uV_s"] > 0]
+    if not math.isfinite(min_retention_time) or min_retention_time < 0:
+        raise ValueError("Minimum retention time must be finite and nonnegative (min).")
+    effective_start = max(start, min_retention_time)
+    candidates = [p for p in peaks if effective_start <= p["retention_time_min"] <= end and p["area_uV_s"] > 0]
     reference = max((p["area_uV_s"] for p in candidates), default=0.0)
     threshold = max(min_area, reference * min_relative_area_percent / 100)
     return [p for p in candidates if p["area_uV_s"] >= threshold], threshold, reference
 
 
-def select_main_peak(peaks, start, end, min_area=0.0, min_relative_area_percent=0.0):
-    candidates, _, _ = filter_peaks(peaks, start, end, min_area, min_relative_area_percent)
+def select_main_peak(peaks, start, end, min_area=0.0, min_relative_area_percent=0.0, min_retention_time=4.0):
+    candidates, _, _ = filter_peaks(peaks, start, end, min_area, min_relative_area_percent, min_retention_time)
     return max(candidates, key=lambda p: p["area_uV_s"], default=None), len(candidates)
 
 
@@ -122,8 +126,9 @@ def write_csv(path, rows, fields):
         writer.writerows(rows)
 
 
-def extract_folder(folder, output, start=6.0, end=12.0, min_area=1000.0, min_relative_area_percent=1.0):
-    filter_peaks([], start, end, min_area, min_relative_area_percent)
+def extract_folder(folder, output, start=6.0, end=12.0, min_area=1000.0, min_relative_area_percent=1.0, min_retention_time=4.0):
+    filter_peaks([], start, end, min_area, min_relative_area_percent, min_retention_time)
+    effective_start = max(start, min_retention_time)
     files = sorted([p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".lcd"], key=lambda p: natural_key(p.name))
     if not files:
         raise ValueError("No LCD files found in the input folder.")
@@ -131,7 +136,8 @@ def extract_folder(folder, output, start=6.0, end=12.0, min_area=1000.0, min_rel
     all_rows, filtered_rows, summaries, manifest = [], [], [], []
     for path in files:
         summary = {"filename": path.name, "selection_start_min": start, "selection_end_min": end,
-                   "min_area_uV_s": min_area, "min_relative_area_percent": min_relative_area_percent}
+                   "min_area_uV_s": min_area, "min_relative_area_percent": min_relative_area_percent,
+                   "min_retention_time_min": min_retention_time}
         entry = {"filename": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
         # Errors remain explicit rows; no failed file is silently skipped.
         try:
@@ -140,19 +146,19 @@ def extract_folder(folder, output, start=6.0, end=12.0, min_area=1000.0, min_rel
                 for peak in channel["peaks"]:
                     all_rows.append({"filename": path.name, "detector": channel["detector"],
                                      "channel_id": channel["channel_id"], **peak, "source": "Shimadzu saved peak table"})
-                filtered, threshold, reference = filter_peaks(channel["peaks"], start, end, min_area, min_relative_area_percent)
+                filtered, threshold, reference = filter_peaks(channel["peaks"], start, end, min_area, min_relative_area_percent, min_retention_time)
                 for peak in filtered:
                     filtered_rows.append({"filename": path.name, "detector": channel["detector"],
                                           "channel_id": channel["channel_id"], **peak,
                                           "source": "Shimadzu saved peak table",
                                           "area_threshold_uV_s": threshold,
                                           "relative_area_percent": peak["area_uV_s"] / reference * 100})
-                main, candidate_count = select_main_peak(filtered, start, end)
+                main, candidate_count = select_main_peak(filtered, start, end, min_retention_time=min_retention_time)
                 prefix = channel["key"]
                 summary[prefix + "_saved_peak_count"] = len(channel["peaks"])
                 summary[prefix + "_window_candidate_count"] = candidate_count
                 summary[prefix + "_area_threshold_uV_s"] = threshold
-                in_window = any(start <= p["retention_time_min"] <= end and p["area_uV_s"] > 0 for p in channel["peaks"])
+                in_window = any(effective_start <= p["retention_time_min"] <= end and p["area_uV_s"] > 0 for p in channel["peaks"])
                 missing_status = "all_window_peaks_below_threshold" if in_window else "no_positive_peak_in_window"
                 summary[prefix + "_status"] = "ok" if main else (channel["status"] if channel["status"] != "ok" else missing_status)
                 for field in ["area_uV_s", "retention_time_min", "height_uV", "start_min", "end_min", "peak_number"]:
@@ -166,7 +172,7 @@ def extract_folder(folder, output, start=6.0, end=12.0, min_area=1000.0, min_rel
         manifest.append(entry)
         summaries.append(summary)
     all_fields = ["filename", "detector", "channel_id", "peak_number", "retention_time_min", "area_uV_s", "height_uV", "start_min", "end_min", "source"]
-    summary_fields = ["filename", "selection_start_min", "selection_end_min", "min_area_uV_s", "min_relative_area_percent"]
+    summary_fields = ["filename", "selection_start_min", "selection_end_min", "min_area_uV_s", "min_relative_area_percent", "min_retention_time_min"]
     for key in ["RI", "UV_210nm", "UV_254nm"]:
         summary_fields.extend(key + "_" + field for field in ["area_uV_s", "retention_time_min", "height_uV", "start_min", "end_min", "peak_number", "saved_peak_count", "window_candidate_count", "area_threshold_uV_s", "status"])
     summary_fields.extend(["status", "error"])
@@ -178,12 +184,13 @@ def extract_folder(folder, output, start=6.0, end=12.0, min_area=1000.0, min_rel
         "failed_files": sum(row["status"] == "error" for row in summaries),
         "filtered_peak_count": len(filtered_rows),
         "filters": {"min_area_uV_s": min_area, "min_relative_area_percent": min_relative_area_percent,
+                    "min_retention_time_min": min_retention_time, "effective_start_min": effective_start,
                     "relative_reference": "Largest positive saved peak within the apex window, separately per file and detector.",
                     "effective_threshold": "max(min_area_uV_s, reference_area_uV_s * min_relative_area_percent / 100)",
                     "note": "Default 1000 uV*s matches the screenshot's minimum-area value; the additional 1% relative filter is a stricter reporting choice, not a reproduction of its inactive relative-area control."},
         "method": "Read stored Shimadzu VER1 PT-* peak tables without reintegration or area scaling.",
         "area_unit": "uV*s", "height_unit": "uV", "time_unit": "min",
-        "summary_rule": f"Largest saved area passing the area filters with retention time in [{start}, {end}] min, separately for each detector. Window filters the apex; saved integration start/end bounds are preserved.",
+        "summary_rule": f"Largest saved area passing the area filters with retention time in [{effective_start}, {end}] min (requested start {start}, minimum retention time {min_retention_time}), separately for each detector. Window filters the apex; saved integration start/end bounds are preserved.",
         "missing_values": "Blank area means no qualifying saved peak/table or a file error; never replaced with zero.",
         "format_reference": "https://github.com/ethanbass/chromConverter/blob/master/R/read_shimadzu_peaktable.R",
         "files": manifest,
@@ -202,12 +209,14 @@ def main():
     parser.add_argument("--output", type=Path, default=Path(__file__).parent / "batch_results" / "26_10_22_47A1-2_filtered")
     parser.add_argument("--start", type=float, default=6)
     parser.add_argument("--end", type=float, default=12)
+    parser.add_argument("--min-retention-time", type=float, default=4,
+                        help="Exclude peak apex times below this many minutes, even if --start is earlier (default: 4)")
     parser.add_argument("--min-area", type=float, default=1000, help="Minimum saved area in uV*s (default: 1000)")
     parser.add_argument("--min-relative-area-percent", type=float, default=1,
                         help="Minimum percent of largest positive peak per file/detector in the apex window; 0 disables (default: 1)")
     args = parser.parse_args()
     try:
-        _, _, metadata = extract_folder(args.folder, args.output, args.start, args.end, args.min_area, args.min_relative_area_percent)
+        _, _, metadata = extract_folder(args.folder, args.output, args.start, args.end, args.min_area, args.min_relative_area_percent, args.min_retention_time)
     except (OSError, ValueError) as error:
         parser.error(str(error))
     if metadata["failed_files"]:
