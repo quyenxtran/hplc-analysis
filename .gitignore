@@ -14,7 +14,8 @@ venv/
 *.svg
 batch_results/
 output/
+editing_results/
 
 # Two curated SVG demonstrations.
 !demo/chromatograms.svg
-!demo/peak_integration.svg
+!demo/peak_editing.svg

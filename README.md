@@ -1,8 +1,7 @@
 # HPLC analysis
 
-Python tools for Shimadzu HPLC chromatogram extraction, visualization, and peak
-areas in **µV·s**. The repository contains code and two demonstration SVGs.
-Input data and generated CSV, JSON, PNG, PDF, and other figures stay local.
+Python tools for calibrated Shimadzu chromatograms, saved peak areas, acid-target
+matching, and auditable manual peak editing. Areas are reported in **µV·s**.
 
 Requires Python 3.9+:
 
@@ -10,157 +9,62 @@ Requires Python 3.9+:
 python -m pip install -r requirements.txt
 ```
 
-## Match different acid targets reliably
+## Manual peak editing
 
-Use `match_acid_peaks.py` for detector-specific target windows. The default
-minimum RT is **5 min**, with no fixed upper cutoff for discovery:
-
-```powershell
-python match_acid_peaks.py "C:\path\to\LCD folder" --output batch_results\discovery
-```
-
-This writes `discovered_peaks.csv` (all positive saved peaks at/after 5 min,
-including a filter flag) and `large_peaks_after_cutoff.csv` (area ≥1000 µV·s
-and ≥1% of the largest late peak per file/detector). Discovery assigns no acid
-names. Change the cutoff with `--min-retention-time`.
-
-For named targets, prepare a CSV with these columns:
-
-```csv
-target_name,detector,expected_rt_min,tolerance_min,min_area_uV_s
-unidentified_47A0_peak,RI,7.1463,0.15,1000
-unidentified_47A0_peak,UV_210nm,6.8845,0.15,1000
-unidentified_47A0_peak,UV_254nm,6.8830,0.15,1000
-```
-
-These are provisional demonstration windows, not chemical identifications or
-validated tolerances. Replace them with standard-derived times and appropriate
-tolerances under your method. Add rows for any number of acids; each acid may
-use different expected RTs and area thresholds on each detector. Supported
-detector keys are `RI`, `UV_210nm`, and `UV_254nm`. The 5-minute cutoff applies
-to targets too; lower it explicitly if a target elutes earlier.
-
-Generate the example locally and run:
+Split overlapping peaks, adjust baselines, insert/reject peaks, merge regions,
+choose vertical or valley-baseline separation, allocate a rider peak with a
+linear/custom skim, and undo/redo operations. Use the Python API or JSON recipes
+for one trace or a folder of compatible LCDs.
 
 ```powershell
-python match_acid_peaks.py --write-example-targets targets.csv
-python match_acid_peaks.py "C:\path\to\LCD folder" --targets targets.csv --output batch_results\targets
+python edit_peaks.py --demo --output editing_results/demo
+python edit_peaks.py sample.lcd --channel ri --recipe edits.json --output output
 ```
 
-`target_matches.csv` contains one row per file/target/detector. A match needs
-exactly one positive peak above that target's absolute minimum within its
-expected RT ± tolerance. Missing matches, multiple candidates, and peaks
-claimed by two targets are flagged with blank reported areas. This avoids
-automatically substituting the largest unrelated peak. `target_candidates.csv`
-retains candidates for review; `matching_metadata.json` records configuration,
-file hashes, and errors. RT matching is a candidate assignment and does not
-confirm chemical identity.
+- [Editing API and allocation rules](docs/editing.md)
+- [Recipe and batch examples](docs/editing_recipes.md)
 
-**The relative-area filter applies only to discovery.** Target matching uses
-each acid's own absolute threshold, so an abundant acid does not suppress a
-weaker acid. Areas retain Shimadzu's saved integration bounds and µV·s units;
-shoulders are not deconvolved.
+![Synthetic overlapping-peak editing demonstration](demo/peak_editing.svg)
 
-Use `--include "47A*.lcd"` to restrict the current example to experiment-named
-files, or repeat `--exclude "wait.lcd"` / other patterns as needed. Files are
-included by default; no name is automatically assumed to be a blank or wash.
+Overlapping-component areas depend on the selected allocation rule. These tools
+do not establish chemical identity or reproduce proprietary Chromatopac behavior.
+The raw signal is retained; negative residuals are flagged instead of clipped.
 
-## Export saved Shimadzu areas from a folder
+## Extraction, integration, and targets
 
 ```powershell
 python batch_extract_areas.py "C:\path\to\LCD folder" --output batch_results
+python match_acid_peaks.py "C:\path\to\LCD folder" --targets targets.csv
+python plot_hplc.py sample.lcd --output output
+python integrate_peak.py sample.lcd --start 6 --end 12
 ```
 
-The legacy batch filter keeps saved peaks with an apex in **5–12 min**,
-area **≥1000 µV·s**, and area **≥1%** of the largest positive saved peak in
-that window, separately for each file/detector. Both thresholds must pass.
-The 1000 minimum matches the illustrated Shimadzu setting. The extra 1% rule
-is a stricter reporting choice; that relative-area control is inactive in the
-screenshot. Existing saved tables already exclude areas below 1000.
+- [Export exact saved Shimadzu peak tables](docs/batch_export.md)
+- [Configure different acid/detector retention windows](docs/target_matching.md)
+- [Plot raw traces and calculate window integrals](docs/integration.md)
 
-A separate **5 min minimum retention time** excludes peaks with an apex below
-5 min, including when `--start` is set earlier. Peaks at exactly 5 min can pass.
-The effective lower bound is `max(--start, --min-retention-time)`. The default
-5–12 min selection includes eligible late peaks. Override the floor with
-`--min-retention-time VALUE` (set it to 0 to disable early-peak exclusion).
-The unfiltered `all_saved_peak_areas.csv` remains the complete source archive.
+The automatic reporting cutoff defaults to 5 min. Manual editing uses explicit
+windows and does not silently discard early signal. The supplied LCD reader
+supports RI plus UV at 210/254 nm; generic numeric CSV editing is also available.
+
+## Checks and structure
 
 ```powershell
-python batch_extract_areas.py "C:\path\to\LCD folder" --min-area 1000 --min-relative-area-percent 1
-```
-
-Use `--min-relative-area-percent 0` to disable relative filtering. Thresholds
-filter saved peak records; they do not rerun Chromatopac width/slope detection
-or separate shoulders from a main peak. `integrate_peak.py` still integrates
-the full selected signal window, including shoulders and tail.
-
-This reads the vendor's saved `LSS Data Processing/PT-*` peak tables directly,
-retaining their original area precision and integration bounds.
-
-- `all_saved_peak_areas.csv`: every saved peak, with filename, detector,
-  retention time, area (µV·s), height (µV), and integration start/end times.
-- `large_peak_areas.csv`: only saved peaks passing the time/area filters, with
-  the effective threshold and each retained peak's percent of the largest peak.
-- `main_peak_areas.csv`: one row per file, with RI and 210/254 nm UV columns.
-  For each detector, selects the largest positive saved area whose apex is in
-  5–12 min and passing both area filters. `--start` and `--end` change the
-  selection window, preserving the saved integration bounds. Candidate counts
-  now report peaks passing all filters. Missing/rejected peaks are blank, with
-  explicit statuses.
-- `extraction_metadata.json`: source hashes, coverage, method, and errors.
-
-Save changes in LabSolutions before exporting to capture updated integration
-results. For the 47A0 demonstration, the saved RI area is 303175.434 µV·s.
-
-## Extract and plot chromatograms
-
-```powershell
-python plot_hplc.py "C:\path\to\sample.lcd" --output output
-```
-
-Exports detector traces, raw counts, metadata, and PNG/PDF/SVG plots. This reader
-supports the three-channel RI, 210 nm UV, and 254 nm UV layout used by 47A0.
-Time uses the recorded sampling interval; mV scaling follows the file's stored
-calibration and value factors. The plotting layout is configured for the
-demonstration's 15 minute run.
-
-![Example chromatograms](demo/chromatograms.svg)
-
-## Calculate areas with adjustable bounds
-
-```powershell
-python integrate_peak.py "C:\path\to\sample.lcd" --start 6 --end 12
-python integrate_peak.py "C:\path\to\sample.lcd" --channel uv210 --start 6.2 --end 11.5
-python integrate_peak.py output\sample_chromatograms.csv --start 6 --end 12
-```
-
-Accepts compatible LCD files or the exported three-channel CSV. Supply an input
-path; the optional default points to the author's local 47A0 data. Other options
-are `--channel ri|uv210|uv254|all`, `--baseline linear|none`, and `--output PATH`.
-
-The script uses signed trapezoidal integration with interpolated boundary
-samples. Its default baseline joins signal values at the endpoints; negative
-portions are retained without clipping or smoothing. `--baseline none` uses a
-zero baseline. Outputs include raw, baseline, and net areas, pointwise curves,
-provenance JSON, and shaded plots.
-
-**Area (µV·s) = area (mV·min) × 60,000.** Older mV·min and mV·s fields are also
-retained. The default 6–12 min window includes shoulders and tail. This calculated
-area can differ from saved Shimadzu results because baseline and boundary rules
-differ: 47A0's RI example gives about 302798 µV·s with these settings. Areas do
-not establish compound identity or concentration without appropriate calibration.
-
-![Example calculated integration](demo/peak_integration.svg)
-
-## Checks and format references
-
-```powershell
+python check_module_sizes.py
 python -m unittest discover -s . -p "test_*.py" -v
 ```
 
-Numerical tests use synthetic data. Optional source-consistency checks run only
-when the original LCD or local exported fixtures are available.
+**Hard limit: 5,000 UTF-8 bytes per Python source/test module and text document.**
+The size check runs in the test suite and GitHub Actions. SVG demo assets are
+exempt. LF line endings keep byte counts consistent across platforms.
 
-Binary layout references:
-[chromatograms](https://github.com/ethanbass/chromConverter/blob/master/R/read_shimadzu_lcd.R)
+Public commands stay at the repository root. Numeric I/O, filtering, reporting,
+and target matching live in small `hplc/` modules; editing operations are grouped
+by responsibility under `hplc/editing/`.
+
+The repository contains code, documentation, and two SVG demos. LCD/CSV data,
+JSON configurations/audits, and generated plots remain local and ignored by Git.
+Optional source-consistency tests are skipped when local fixtures are absent.
+
+Binary layout references: [chromatograms](https://github.com/ethanbass/chromConverter/blob/master/R/read_shimadzu_lcd.R)
 and [saved peak tables](https://github.com/ethanbass/chromConverter/blob/master/R/read_shimadzu_peaktable.R).
